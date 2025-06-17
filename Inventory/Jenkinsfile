@@ -10,7 +10,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git 'Code already checkout'
+                 echo 'Code already checked out in Declarative SCM phase'
             }
         }
 
