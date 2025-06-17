@@ -10,16 +10,18 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                 echo 'Code already checked out in Declarative SCM phase'
+                echo 'Code already checked out in Declarative SCM phase'
             }
         }
 
         stage('Run Selenium Tests') {
             steps {
                 script {
-                    docker.image('markhobson/maven-chrome').inside('-v $HOME/.m2:/root/.m2') {
-                        dir('InventoryApp') {
-                            sh 'mvn test'
+                    docker.image('markhobson/maven-chrome').inside('-u root') {
+                        withEnv(["MAVEN_CONFIG=/tmp/.m2"]) {
+                            dir('InventoryApp') {
+                                sh 'mvn test'
+                            }
                         }
                     }
                 }
