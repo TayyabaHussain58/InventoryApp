@@ -1,19 +1,14 @@
 pipeline {
-    agent {
-        docker {
-            image 'markhobson/maven-chrome'
-            args '-v $HOME/.m2:/root/.m2'
-        }
-    }
+    agent any
 
     environment {
+        APP_DIR = '/home/ubuntu/InventoryAutomation'
         DEPLOY_USER = 'ubuntu'
         DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
-        DEPLOY_DIR  = '/home/ubuntu/InventoryAutomation'
     }
 
     stages {
-        stage('Clone Repo') {
+        stage('Checkout Code') {
             steps {
                 git 'https://github.com/TayyabaHussain58/InventoryApp-.git'
             }
@@ -21,8 +16,12 @@ pipeline {
 
         stage('Run Selenium Tests') {
             steps {
-                dir('InventoryApp') {
-                    sh 'mvn test'
+                script {
+                    docker.image('markhobson/maven-chrome').inside('-v $HOME/.m2:/root/.m2') {
+                        dir('InventoryApp') {
+                            sh 'mvn test'
+                        }
+                    }
                 }
             }
         }
@@ -31,19 +30,15 @@ pipeline {
             steps {
                 sshagent(credentials: ['ec2-ssh']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST <<EOF
-                        cd $DEPLOY_DIR
-                        git pull origin main
-
-                        cd InventoryApp/server
-                        npm install
-                        pm2 restart backend || pm2 start index.js --name backend
-
-                        cd ../Inventory
-                        npm install
-                        npm run build
-                        pm2 serve dist 3000 --name inventory --spa
-                        EOF
+                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST '
+                            cd $APP_DIR &&
+                            git pull origin main &&
+                            cd server && npm install &&
+                            pm2 restart backend || pm2 start index.js --name server &&
+                            cd ../inventory &&
+                            npm install &&
+                            pm2 serve build 3000 --name inventory --spa
+                        '
                     '''
                 }
             }
