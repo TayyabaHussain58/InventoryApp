@@ -5,41 +5,51 @@ pipeline {
             args '-v $HOME/.m2:/root/.m2'
         }
     }
+
     environment {
-        DEPLOY_KEY = credentials('ec2-private-key') // Jenkins credential ID for your .pem file
+        DEPLOY_USER = 'ubuntu'
+        DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
+        DEPLOY_DIR  = '/home/ubuntu/InventoryAutomation'
     }
+
     stages {
-        stage('Test') {
+        stage('Clone Repo') {
             steps {
                 git 'https://github.com/TayyabaHussain58/InventoryApp-.git'
-                dir('test') {
+            }
+        }
+
+        stage('Run Selenium Tests') {
+            steps {
+                dir('InventoryApp') {
                     sh 'mvn test'
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to EC2') {
             steps {
                 sshagent(credentials: ['ec2-ssh']) {
                     sh '''
-                        ssh -i "Devops.pem" ubuntu@ec2-51-20-182-249.eu-north-1.compute.amazonaws.com <<EOF
-                        cd /home/ubuntu/InventoryAutomation
+                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST <<EOF
+                        cd $DEPLOY_DIR
                         git pull origin main
 
-                        cd server
+                        cd InventoryApp/server
                         npm install
-                        pm2 restart backend || pm2 start index.js --name server
+                        pm2 restart backend || pm2 start index.js --name backend
 
-                        cd ../inventory
+                        cd ../Inventory
                         npm install
-                        npm run dev
-                        pm2 serve build 3000 --name inventory --spa
+                        npm run build
+                        pm2 serve dist 3000 --name inventory --spa
                         EOF
                     '''
                 }
             }
         }
     }
+
     post {
         always {
             echo 'Pipeline Execution Finished'
