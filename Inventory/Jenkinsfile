@@ -1,0 +1,48 @@
+pipeline {
+    agent {
+        docker {
+            image 'markhobson/maven-chrome'
+            args '-v $HOME/.m2:/root/.m2'
+        }
+    }
+    environment {
+        DEPLOY_KEY = credentials('ec2-private-key') // Jenkins credential ID for your .pem file
+    }
+    stages {
+        stage('Test') {
+            steps {
+                git 'https://github.com/TayyabaHussain58/InventoryApp-.git'
+                dir('test') {
+                    sh 'mvn test'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sshagent(credentials: ['ec2-ssh']) {
+                    sh '''
+                        ssh -i "Devops.pem" ubuntu@ec2-51-20-182-249.eu-north-1.compute.amazonaws.com <<EOF
+                        cd /home/ubuntu/InventoryAutomation
+                        git pull origin main
+
+                        cd server
+                        npm install
+                        pm2 restart backend || pm2 start index.js --name server
+
+                        cd ../inventory
+                        npm install
+                        npm run dev
+                        pm2 serve build 3000 --name inventory --spa
+                        EOF
+                    '''
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Pipeline Execution Finished'
+        }
+    }
+}
