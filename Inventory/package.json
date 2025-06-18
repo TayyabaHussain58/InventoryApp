@@ -11,7 +11,6 @@
     "start": "npm run dev",
     "preview": "vite preview",
     "server": "NODE_OPTIONS='--max-old-space-size=2048' ts-node src/server/index.ts",
-    "server:js": "NODE_OPTIONS='--max-old-space-size=2048' node src/server/server.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
