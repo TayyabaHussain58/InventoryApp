@@ -10,7 +10,7 @@
     "build:debug": "NODE_OPTIONS='--max-old-space-size=4096' tsc && NODE_OPTIONS='--max-old-space-size=4096' vite build --verbose",
     "start": "npm run dev",
     "preview": "vite preview",
-    "server": "NODE_OPTIONS='--max-old-space-size=2048' ts-node src/server/index.ts",
+    "server": "NODE_OPTIONS='--max-old-space-size=2048' ts-node src/server/index.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
