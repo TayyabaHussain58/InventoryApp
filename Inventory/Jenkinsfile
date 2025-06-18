@@ -34,10 +34,9 @@ pipeline {
               if [ -d "$APP_DIR/.git" ]; then
                 cd "$APP_DIR"
                 git pull origin main
-              else
-                rm -rf "$APP_DIR"
-                mkdir -p "$APP_DIR"
-                git clone $REPO_SSH "$(dirname "$APP_DIR")"
+              elserm
+                -rf "$APP_DIR"
+                git clone $REPO_SSH "$APP_DIR"
                 cd "$APP_DIR"
               fi
 
