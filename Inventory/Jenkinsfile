@@ -50,8 +50,46 @@ pipeline {
                 
                 cd "${appDir}"
                 echo "Current directory: \$(pwd)"
-                echo "Directory contents:"
+                echo "Repository structure:"
                 ls -la
+                
+                # Find the correct application directory
+                APP_SUBDIR=""
+                if [ -f "Inventory/package.json" ]; then
+                  echo "Found application in Inventory subdirectory"
+                  APP_SUBDIR="Inventory"
+                elif [ -f "InventoryApp/package.json" ]; then
+                  echo "Found application in InventoryApp subdirectory"  
+                  APP_SUBDIR="InventoryApp"
+                elif [ -f "package.json" ]; then
+                  echo "Found application in root directory"
+                  APP_SUBDIR="."
+                else
+                  echo "ERROR: Could not find package.json. Searching..."
+                  find . -name "package.json" -type f
+                  exit 1
+                fi
+                
+                # Navigate to the application directory
+                if [ "\$APP_SUBDIR" != "." ]; then
+                  cd "\$APP_SUBDIR"
+                fi
+                
+                echo "Working in directory: \$(pwd)"
+                echo "Application files:"
+                ls -la
+                
+                # Verify we have the right structure
+                if [ ! -f "package.json" ]; then
+                  echo "ERROR: package.json not found in current directory"
+                  exit 1
+                fi
+                
+                if [ ! -d "src/server" ]; then
+                  echo "ERROR: src/server directory not found"
+                  ls -la src/ || echo "src directory does not exist"
+                  exit 1
+                fi
                 
                 # Install all dependencies
                 echo "=== Installing Dependencies ==="
@@ -76,8 +114,17 @@ pipeline {
                 # Stop existing frontend if running
                 pm2 delete frontend 2>/dev/null || echo "No existing frontend process"
                 
-                # Serve the built frontend
-                pm2 serve dist 3000 --name frontend --spa
+                # Serve the built frontend (check for both dist and build directories)
+                if [ -d "dist" ]; then
+                  echo "Serving from dist directory"
+                  pm2 serve dist 3000 --name frontend --spa
+                elif [ -d "build" ]; then
+                  echo "Serving from build directory"
+                  pm2 serve build 3000 --name frontend --spa
+                else
+                  echo "No build output found, running in dev mode"
+                  pm2 start npm --name frontend -- run dev
+                fi
                 
                 # Save PM2 configuration
                 pm2 save
