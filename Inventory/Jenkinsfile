@@ -35,7 +35,8 @@ pipeline {
                 cd "$APP_DIR"
                 git pull origin main
               else
-                rm -rf "$(dirname "$APP_DIR")"
+                rm -rf "$APP_DIR"
+                mkdir -p "$APP_DIR"
                 git clone $REPO_SSH "$(dirname "$APP_DIR")"
                 cd "$APP_DIR"
               fi
