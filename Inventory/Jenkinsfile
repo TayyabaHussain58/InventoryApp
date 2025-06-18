@@ -29,13 +29,19 @@ pipeline {
         }
 
         stage('Deploy to EC2') {
-            steps {
-                sshagent(credentials: ['ec2-ssh']) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
-                            set -e  # Exit on error
+            sshagent(credentials: ['ec2-ssh']) {
+                sh '''
+                    ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+                        set -e
+    
+                        # Ensure the project directory exists
+                        if [ ! -d "$APP_DIR/.git" ]; then
+                            rm -rf $APP_DIR
+                            git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git $APP_DIR
+                        else
                             cd $APP_DIR
                             git pull origin main
+                        fi
 
                             # Start backend
                             cd src/server
