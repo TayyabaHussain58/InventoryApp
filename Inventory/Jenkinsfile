@@ -2,21 +2,29 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_USER = "ubuntu"
+        APP_DIR = '/home/ubuntu/InventoryAutomation'
+        DEPLOY_USER = 'ubuntu'
         DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
-        APP_DIR = "/home/ubuntu/app"
     }
 
     stages {
-        stage('Clone') {
+        stage('Checkout Code') {
             steps {
-                git 'https://github.com/TayyabaHussain58/InventoryApp-.git'
+                echo 'Code already checked out in Declarative SCM phase'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Run Selenium Tests') {
             steps {
-                sh 'npm install'
+                script {
+                    docker.image('markhobson/maven-chrome').inside("--entrypoint='' -u root") {
+                        withEnv(["MAVEN_CONFIG=/tmp/.m2"]) {
+                            dir('InventoryApp') {
+                                sh 'mvn test'
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -24,37 +32,32 @@ pipeline {
             steps {
                 sshagent(credentials: ['ec2-ssh']) {
                     sh '''
-                    ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
-                        set -e
-
-                        # Clone or Pull Code
-                        if [ -d "$APP_DIR" ]; then
-                            cd $APP_DIR && git pull
-                        else
-                            git clone https://github.com/TayyabaHussain58/InventoryApp-.git $APP_DIR
+                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
                             cd $APP_DIR
-                        fi
+                            git pull origin main
 
-                        npm install
+                            # Backend setup inside src/server
+                            cd src/server
+                            npm install
+                            pm2 restart backend || pm2 start index.ts --name backend
 
-                        # Start/Restart Backend
-                        if pm2 list | grep -q backend; then
-                            pm2 restart backend
-                        else
-                            pm2 start npm --name backend -- run server
-                        fi
+                            # Frontend build from root
+                            cd ../../
+                            npm install
+                            npm run dev
 
-                        # Start/Restart Frontend
-                        if pm2 list | grep -q frontend; then
-                            pm2 restart frontend
-                        else
-                            pm2 start npm --name frontend -- run dev
-                        fi
-
-                    ENDSSH
+                            # Serve frontend build with PM2
+                            pm2 serve build 3000 --name frontend --spa
+                        ENDSSH
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline Execution Finished'
         }
     }
 }
