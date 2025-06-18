@@ -19,9 +19,8 @@ pipeline {
                 script {
                     docker.image('markhobson/maven-chrome').inside('-u root') {
                         withEnv(["MAVEN_CONFIG=/tmp/.m2"]) {
-                            dir('InventoryApp') {
-                                sh 'mvn test'
-                            }
+                            // Adjust this if your test code is somewhere specific
+                            sh 'mvn test'
                         }
                     }
                 }
@@ -32,15 +31,23 @@ pipeline {
             steps {
                 sshagent(credentials: ['ec2-ssh']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST '
-                            cd $APP_DIR &&
-                            git pull origin main &&
-                            cd server && npm install &&
-                            pm2 restart server || pm2 start index.js --name server &&
-                            cd ../inventory &&
-                            npm install &&
-                            pm2 serve build 3000 --name inventory --spa
-                        '
+                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+                            cd $APP_DIR
+                            git pull origin main
+
+                            # Backend setup inside src/server
+                            cd src/server
+                            npm install
+                            pm2 restart backend || pm2 start index.js --name backend
+
+                            # Frontend build from root
+                            cd ../../
+                            npm install
+                            npm run build
+
+                            # Serve frontend build with PM2
+                            pm2 serve build 3000 --name frontend --spa
+                        ENDSSH
                     '''
                 }
             }
