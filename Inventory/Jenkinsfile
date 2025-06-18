@@ -33,21 +33,28 @@ pipeline {
                 sshagent(credentials: ['ec2-ssh']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+                            set -e  # Exit on error
                             cd $APP_DIR
                             git pull origin main
 
-                            # Backend setup inside src/server
+                            # Start backend
                             cd src/server
                             npm install
-                            pm2 restart backend || pm2 start index.ts --name backend
+                            pm2 restart backend || pm2 start index.ts --name backend --interpreter ts-node
 
-                            # Frontend build from root
+                            # Start frontend (npm run dev is for development — not for production)
                             cd ../../
                             npm install
-                            npm run dev
 
-                            # Serve frontend build with PM2
-                            pm2 serve build 3000 --name frontend --spa
+                            # You should build if deploying to production
+                            npm run build || echo "Build skipped or failed (dev mode assumed)"
+
+                            # Serve built frontend (if built) OR dev mode
+                            if [ -d build ]; then
+                                pm2 serve build 3000 --name frontend --spa
+                            else
+                                pm2 restart frontend || pm2 start npm --name frontend -- run dev
+                            fi
                         ENDSSH
                     '''
                 }
