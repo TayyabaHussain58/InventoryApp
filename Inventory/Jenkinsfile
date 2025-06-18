@@ -1,13 +1,11 @@
 pipeline {
   agent any
-
   environment {
     APP_DIR     = '/home/ubuntu/InventoryAutomation/Inventory'
     REPO_SSH    = 'git@github.com:TayyabaHussain58/InventoryApp.git'
     DEPLOY_USER = 'ubuntu'
     DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
   }
-
   stages {
     stage('Run Selenium Tests') {
       steps {
@@ -22,7 +20,6 @@ pipeline {
         }
       }
     }
-
     stage('Deploy to EC2') {
       steps {
         sshagent(credentials: ['ec2-ssh']) {
@@ -30,41 +27,86 @@ pipeline {
             ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
               set -e
               
+              echo "=== Starting Deployment Process ==="
+              
               # Clone or pull app code
               if [ -d "$APP_DIR/.git" ]; then
+                echo "Repository exists, pulling latest changes..."
                 cd "$APP_DIR"
                 git pull origin main
-              elserm
-                -rf "$APP_DIR"
-                git clone $REPO_SSH "$APP_DIR"
-                cd "$APP_DIR"
-              fi
-
-              # Backend
-              cd src/server
-              npm install
-              pm2 restart backend || pm2 start index.ts --name backend --interpreter ts-node
-
-              # Frontend
-              cd "$APP_DIR"
-              npm install
-              npm run build || echo "Skipping build (dev mode)"
-              if [ -d build ]; then
-                pm2 serve build 3000 --name frontend --spa
               else
-                pm2 restart frontend || pm2 start npm --name frontend -- run dev
+                echo "Cloning repository..."
+                rm -rf "$APP_DIR"
+                git clone $REPO_SSH "$APP_DIR"
               fi
-
+              
+              cd "$APP_DIR"
+              echo "Current directory: $(pwd)"
+              
+              # Install all dependencies (includes both frontend and backend deps)
+              echo "=== Installing Dependencies ==="
+              npm install
+              
+              # Deploy Backend
+              echo "=== Deploying Backend Server ==="
+              
+              # Stop existing backend if running
+              pm2 delete backend 2>/dev/null || echo "No existing backend process"
+              
+              # Start backend using the npm script
+              pm2 start npm --name backend -- run server
+              
+              # Deploy Frontend
+              echo "=== Deploying Frontend ==="
+              
+              # Build the frontend
+              echo "Building frontend with Vite..."
+              npm run build
+              
+              # Stop existing frontend if running
+              pm2 delete frontend 2>/dev/null || echo "No existing frontend process"
+              
+              # Serve the built frontend
+              pm2 serve dist 3000 --name frontend --spa
+              
+              # Save PM2 configuration
+              pm2 save
+              pm2 startup || echo "PM2 startup already configured"
+              
+              # Show final PM2 status
+              echo "=== Deployment Complete ==="
+              echo "PM2 Process Status:"
+              pm2 list
+              
+              echo "Backend should be running on port 5000"
+              echo "Frontend should be running on port 3000"
+              
+              # Test if services are responding
+              sleep 5
+              echo "Testing backend health..."
+              curl -f http://localhost:5000 || echo "Backend not responding yet (normal for first start)"
+              
+              echo "Testing frontend health..."
+              curl -f http://localhost:3000 || echo "Frontend not responding yet (normal for first start)"
+              
             ENDSSH
           '''
         }
       }
     }
   }
-
   post {
     always {
       echo 'Pipeline Execution Finished'
+    }
+    success {
+      echo 'Deployment completed successfully!'
+      echo 'Your app should be available at:'
+      echo '- Frontend: http://ec2-51-20-182-249.eu-north-1.compute.amazonaws.com:3000'
+      echo '- Backend API: http://ec2-51-20-182-249.eu-north-1.compute.amazonaws.com:5000'
+    }
+    failure {
+      echo 'Deployment failed. Check the logs above for details.'
     }
   }
 }
