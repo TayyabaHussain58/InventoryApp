@@ -2,7 +2,7 @@ pipeline {
   agent any
   environment {
     APP_DIR     = '/home/ubuntu/InventoryAutomation/Inventory'
-    REPO_SSH    = 'git@github.com:TayyabaHussain58/InventoryApp.git'
+    REPO_SSH    = 'https://github.com/TayyabaHussain58/InventoryApp.git'
     DEPLOY_USER = 'ubuntu'
     DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
   }
@@ -23,74 +23,84 @@ pipeline {
     stage('Deploy to EC2') {
       steps {
         sshagent(credentials: ['ec2-ssh']) {
-          sh '''
-            ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
-              set -e
-              
-              echo "=== Starting Deployment Process ==="
-              
-              # Clone or pull app code
-              if [ -d "$APP_DIR/.git" ]; then
-                echo "Repository exists, pulling latest changes..."
-                cd "$APP_DIR"
-                git pull origin main
-              else
-                echo "Cloning repository..."
-                rm -rf "$APP_DIR"
-                git clone $REPO_SSH "$APP_DIR"
-              fi
-              
-              cd "$APP_DIR"
-              echo "Current directory: $(pwd)"
-              
-              # Install all dependencies (includes both frontend and backend deps)
-              echo "=== Installing Dependencies ==="
-              npm install
-              
-              # Deploy Backend
-              echo "=== Deploying Backend Server ==="
-              
-              # Stop existing backend if running
-              pm2 delete backend 2>/dev/null || echo "No existing backend process"
-              
-              # Start backend using the npm script
-              pm2 start npm --name backend -- run server
-              
-              # Deploy Frontend
-              echo "=== Deploying Frontend ==="
-              
-              # Build the frontend
-              echo "Building frontend with Vite..."
-              npm run build
-              
-              # Stop existing frontend if running
-              pm2 delete frontend 2>/dev/null || echo "No existing frontend process"
-              
-              # Serve the built frontend
-              pm2 serve dist 3000 --name frontend --spa
-              
-              # Save PM2 configuration
-              pm2 save
-              pm2 startup || echo "PM2 startup already configured"
-              
-              # Show final PM2 status
-              echo "=== Deployment Complete ==="
-              echo "PM2 Process Status:"
-              pm2 list
-              
-              echo "Backend should be running on port 5000"
-              echo "Frontend should be running on port 3000"
-              
-              # Test if services are responding
-              sleep 5
-              echo "Testing backend health..."
-              curl -f http://localhost:5000 || echo "Backend not responding yet (normal for first start)"
-              
-              echo "Testing frontend health..."
-              curl -f http://localhost:3000 || echo "Frontend not responding yet (normal for first start)"
-              
-            ENDSSH
-          '''
+          script {
+            def appDir = env.APP_DIR
+            def repoUrl = env.REPO_SSH
+            def deployUser = env.DEPLOY_USER
+            def deployHost = env.DEPLOY_HOST
+            
+            sh """
+              ssh -o StrictHostKeyChecking=no ${deployUser}@${deployHost} '
+                set -e
+                
+                echo "=== Starting Deployment Process ==="
+                echo "App directory: ${appDir}"
+                echo "Repository: ${repoUrl}"
+                
+                # Clone or pull app code
+                if [ -d "${appDir}/.git" ]; then
+                  echo "Repository exists, pulling latest changes..."
+                  cd "${appDir}"
+                  git pull origin main
+                else
+                  echo "Cloning repository..."
+                  rm -rf "${appDir}"
+                  git clone ${repoUrl} "${appDir}"
+                fi
+                
+                cd "${appDir}"
+                echo "Current directory: \$(pwd)"
+                echo "Directory contents:"
+                ls -la
+                
+                # Install all dependencies
+                echo "=== Installing Dependencies ==="
+                npm install
+                
+                # Deploy Backend
+                echo "=== Deploying Backend Server ==="
+                
+                # Stop existing backend if running
+                pm2 delete backend 2>/dev/null || echo "No existing backend process"
+                
+                # Start backend using the npm script
+                pm2 start npm --name backend -- run server
+                
+                # Deploy Frontend
+                echo "=== Deploying Frontend ==="
+                
+                # Build the frontend
+                echo "Building frontend with Vite..."
+                npm run build
+                
+                # Stop existing frontend if running
+                pm2 delete frontend 2>/dev/null || echo "No existing frontend process"
+                
+                # Serve the built frontend
+                pm2 serve dist 3000 --name frontend --spa
+                
+                # Save PM2 configuration
+                pm2 save
+                pm2 startup || echo "PM2 startup already configured"
+                
+                # Show final PM2 status
+                echo "=== Deployment Complete ==="
+                echo "PM2 Process Status:"
+                pm2 list
+                
+                echo "Backend should be running on port 5000"
+                echo "Frontend should be running on port 3000"
+                
+                # Test if services are responding
+                sleep 5
+                echo "Testing backend health..."
+                curl -f http://localhost:5000 || echo "Backend not responding yet (normal for first start)"
+                
+                echo "Testing frontend health..."
+                curl -f http://localhost:3000 || echo "Frontend not responding yet (normal for first start)"
+              '
+            """
+          }
         }
       }
     }
@@ -100,13 +110,13 @@ pipeline {
       echo 'Pipeline Execution Finished'
     }
     success {
-      echo 'Deployment completed successfully!'
+      echo '✅ Deployment completed successfully!'
       echo 'Your app should be available at:'
       echo '- Frontend: http://ec2-51-20-182-249.eu-north-1.compute.amazonaws.com:3000'
       echo '- Backend API: http://ec2-51-20-182-249.eu-north-1.compute.amazonaws.com:5000'
     }
     failure {
-      echo 'Deployment failed. Check the logs above for details.'
+      echo '❌ Deployment failed. Check the logs above for details.'
     }
   }
 }
