@@ -17,11 +17,17 @@ pipeline {
         stage('Run Selenium Tests') {
             steps {
                 script {
-                    docker.image('markhobson/maven-chrome').inside('-u root') {
+                    docker.image('markhobson/maven-chrome').inside("--entrypoint='' -u root") {
                         withEnv(["MAVEN_CONFIG=/tmp/.m2"]) {
-                            // Adjust this if your test code is somewhere specific
-                            sh 'mvn test'
+                            dir('InventoryApp') {
+                                sh 'mvn test'
+                            }
                         }
+                    }
+                }
+            }
+        }
+
                     }
                 }
             }
