@@ -4,10 +4,10 @@
   "description": "A web-based inventory management system built with TypeScript and React",
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=2048' vite",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' tsc && NODE_OPTIONS='--max-old-space-size=4096' vite build",
+    "build": "NODE_OPTIONS='--max-old-space-size=2048' tsc && NODE_OPTIONS='--max-old-space-size=2048' vite build",
     "build:fast": "NODE_OPTIONS='--max-old-space-size=2048' tsc --noEmit && NODE_OPTIONS='--max-old-space-size=2048' vite build --minify esbuild",
     "build:minimal": "NODE_OPTIONS='--max-old-space-size=1024' vite build --mode development --minify false",
-    "build:debug": "NODE_OPTIONS='--max-old-space-size=4096' tsc && NODE_OPTIONS='--max-old-space-size=4096' vite build --verbose",
+    "build:debug": "NODE_OPTIONS='--max-old-space-size=2048' tsc && NODE_OPTIONS='--max-old-space-size=2048' vite build --verbose",
     "start": "npm run dev",
     "preview": "vite preview",
     "server": "NODE_OPTIONS='--max-old-space-size=2048' ts-node src/server/index.ts"
