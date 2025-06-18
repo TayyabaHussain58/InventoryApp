@@ -1,77 +1,70 @@
 pipeline {
-    agent any
+  agent any
 
-    environment {
-        APP_DIR = '/home/ubuntu/InventoryAutomation'
-        DEPLOY_USER = 'ubuntu'
-        DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
+  environment {
+    APP_DIR     = '/home/ubuntu/InventoryAutomation/Inventory'
+    REPO_SSH    = 'git@github.com:TayyabaHussain58/InventoryApp.git'
+    DEPLOY_USER = 'ubuntu'
+    DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
+  }
+
+  stages {
+    stage('Run Selenium Tests') {
+      steps {
+        script {
+          docker.image('markhobson/maven-chrome').inside("--entrypoint='' -u root") {
+            withEnv(["MAVEN_CONFIG=/tmp/.m2"]) {
+              dir('InventoryApp') {
+                sh 'mvn test'
+              }
+            }
+          }
+        }
+      }
     }
 
-    stages {
-        stage('Checkout Code') {
-            steps {
-                echo 'Code already checked out in Declarative SCM phase'
-            }
+    stage('Deploy to EC2') {
+      steps {
+        sshagent(credentials: ['ec2-ssh']) {
+          sh '''
+            ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+              set -e
+              
+              # Clone or pull app code
+              if [ -d "$APP_DIR/.git" ]; then
+                cd "$APP_DIR"
+                git pull origin main
+              else
+                rm -rf "$(dirname "$APP_DIR")"
+                git clone $REPO_SSH "$(dirname "$APP_DIR")"
+                cd "$APP_DIR"
+              fi
+
+              # Backend
+              cd src/server
+              npm install
+              pm2 restart backend || pm2 start index.ts --name backend --interpreter ts-node
+
+              # Frontend
+              cd "$APP_DIR"
+              npm install
+              npm run build || echo "Skipping build (dev mode)"
+              if [ -d build ]; then
+                pm2 serve build 3000 --name frontend --spa
+              else
+                pm2 restart frontend || pm2 start npm --name frontend -- run dev
+              fi
+
+            ENDSSH
+          '''
         }
-
-        stage('Run Selenium Tests') {
-            steps {
-                script {
-                    docker.image('markhobson/maven-chrome').inside("--entrypoint='' -u root") {
-                        withEnv(["MAVEN_CONFIG=/tmp/.m2"]) {
-                            dir('InventoryApp') {
-                                sh 'mvn test'
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Deploy to EC2') {
-            steps {
-                sshagent(credentials: ['ec2-ssh']) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
-                            set -e
-
-                            # Ensure the project directory exists
-                            if [ ! -d "$APP_DIR/.git" ]; then
-                                rm -rf $APP_DIR
-                                git clone https://github.com/TayyabaHussain58/InventoryApp-.git $APP_DIR
-                            else
-                                cd $APP_DIR
-                                git pull origin main
-                            fi
-
-                            # Start backend
-                            cd $APP_DIR/src/server
-                            npm install
-                            pm2 restart backend || pm2 start index.ts --name backend --interpreter ts-node
-
-                            # Start frontend (npm run dev is for development — not for production)
-                            cd $APP_DIR
-                            npm install
-
-                            # You should build if deploying to production
-                            npm run build || echo "Build skipped or failed (dev mode assumed)"
-
-                            # Serve built frontend (if built) OR dev mode
-                            if [ -d build ]; then
-                                pm2 serve build 3000 --name frontend --spa
-                            else
-                                pm2 restart frontend || pm2 start npm --name frontend -- run dev
-                            fi
-                        ENDSSH
-                    '''
-                }
-            }
-        }
+      }
     }
+  }
 
-    post {
-        always {
-            echo 'Pipeline Execution Finished'
-        }
+  post {
+    always {
+      echo 'Pipeline Execution Finished'
     }
+  }
 }
