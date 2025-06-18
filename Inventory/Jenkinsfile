@@ -36,7 +36,7 @@ pipeline {
                             cd $APP_DIR &&
                             git pull origin main &&
                             cd server && npm install &&
-                            pm2 restart backend || pm2 start index.js --name server &&
+                            pm2 restart server || pm2 start index.js --name server &&
                             cd ../inventory &&
                             npm install &&
                             pm2 serve build 3000 --name inventory --spa
