@@ -5,6 +5,8 @@ pipeline {
     REPO_SSH    = 'https://github.com/TayyabaHussain58/InventoryApp.git'
     DEPLOY_USER = 'ubuntu'
     DEPLOY_HOST = 'ec2-51-20-182-249.eu-north-1.compute.amazonaws.com'
+    // Add Node.js memory configuration
+    NODE_OPTIONS = '--max-old-space-size=4096'
   }
   stages {
     stage('Run Selenium Tests') {
@@ -36,6 +38,10 @@ pipeline {
                 echo "=== Starting Deployment Process ==="
                 echo "App directory: ${appDir}"
                 echo "Repository: ${repoUrl}"
+                
+                # Set Node.js memory limit
+                export NODE_OPTIONS="--max-old-space-size=4096"
+                echo "Node.js memory limit set to 4GB"
                 
                 # Clone or pull app code
                 if [ -d "${appDir}/.git" ]; then
@@ -101,15 +107,15 @@ pipeline {
                 # Stop existing backend if running
                 pm2 delete backend 2>/dev/null || echo "No existing backend process"
                 
-                # Start backend using the npm script
-                pm2 start npm --name backend -- run server
+                # Start backend using the npm script with memory limit
+                NODE_OPTIONS="--max-old-space-size=2048" pm2 start npm --name backend -- run server
                 
                 # Deploy Frontend
                 echo "=== Deploying Frontend ==="
                 
-                # Build the frontend
-                echo "Building frontend with Vite..."
-                npm run build
+                # Build the frontend with increased memory
+                echo "Building frontend with Vite (4GB memory limit)..."
+                NODE_OPTIONS="--max-old-space-size=4096" npm run build
                 
                 # Stop existing frontend if running
                 pm2 delete frontend 2>/dev/null || echo "No existing frontend process"
@@ -123,7 +129,7 @@ pipeline {
                   pm2 serve build 3000 --name frontend --spa
                 else
                   echo "No build output found, running in dev mode"
-                  pm2 start npm --name frontend -- run dev
+                  NODE_OPTIONS="--max-old-space-size=2048" pm2 start npm --name frontend -- run dev
                 fi
                 
                 # Save PM2 configuration
